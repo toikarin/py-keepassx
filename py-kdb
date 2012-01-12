@@ -157,7 +157,7 @@ class KDBDatabaseCli(cmd.Cmd):
 
         for g in self.cur_group.children:
             print("+ {title}".format(title=g.title))
-        for e in self.cur_group.entries:
+        for e in sorted(self.cur_group.entries, key=lambda x: x.title.lower() if x else x):
             print("x {title}".format(title=e.title))
 
     def help_cd(self):
