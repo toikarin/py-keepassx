@@ -3,6 +3,10 @@
 import kdbdatabase
 import cmd
 import getpass
+import readline
+import os
+
+readline.set_completer_delims(" ")
 
 
 class KDBDatabaseCli(cmd.Cmd):
@@ -29,6 +33,44 @@ class KDBDatabaseCli(cmd.Cmd):
 
     def usage_open(self):
         print("Usage: open <filename>")
+
+    def complete_open(self, text, line, begidx, endidx):
+        splitted = line.split(' ')
+
+        # only do completion if user is writing the first argument
+        if len(splitted) != 2:
+            return
+
+        full_path = os.path.expanduser(splitted[1])
+
+        # Check if it's a directory
+        if full_path.endswith(os.sep):
+            # Find files from that directory
+            files = os.listdir(full_path)
+            # Use full paths
+            files = map(lambda x: os.path.join(full_path, x), files)
+            # Add path separator if file is directory and empty space if file is normal file
+            files = map(lambda x: x + os.sep if os.path.isdir(x) else x + " ", files)
+        else:
+            dir_part, file_part = os.path.split(full_path)
+
+            # Special case: handle ..
+            if file_part == "..":
+                return (full_path + os.sep, )
+
+            directory = dir_part or os.getcwd()
+
+            # take only files which start with file_part
+            files = filter(lambda x: x.startswith(file_part), os.listdir(directory))
+
+            if dir_part:
+                # Add directory part to files
+                files = map(lambda x: os.path.join(dir_part, x), files)
+
+            # Add file and directory indicators
+            files = map(lambda x: x + os.sep if os.path.isdir(x) else x + " ", files)
+
+        return files
 
     def do_open(self, filename):
         if not filename:
