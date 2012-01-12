@@ -117,6 +117,21 @@ class KDBDatabaseCli(cmd.Cmd):
     def help_cat(self):
         print("Read the given entry.")
 
+    def complete_cat(self, text, line, begidx, endidx):
+        return self._complete_entry(text)
+
+    def _complete_entry(self, text):
+        if not self.cur_group:
+            return
+
+        entries = list()
+
+        for e in self.cur_group.entries:
+            if e.title and e.title.startswith(text):
+                entries.append(e.title)
+
+        return entries
+
     def do_cat(self, entry_name):
         if not self.is_open():
             print("cat: No database currently opened")
@@ -138,6 +153,9 @@ class KDBDatabaseCli(cmd.Cmd):
 
     def help_passwd(self):
         print("Show the password of the given entry.")
+
+    def complete_passwd(self, text, line, begidx, endidx):
+        return self._complete_entry(text)
 
     def do_passwd(self, entry_name):
         if not self.is_open():
@@ -181,6 +199,18 @@ class KDBDatabaseCli(cmd.Cmd):
 
     def help_cd(self):
         print("Change the working group.")
+
+    def complete_cd(self, text, line, begidx, endidx):
+        group_names = list()
+
+        if not self.cur_group:
+            return
+
+        for g in self.cur_group.children:
+            if g.title and g.title.startswith(text):
+                group_names.append(g.title)
+
+        return group_names
 
     def do_cd(self, path):
         if not self.is_open():
