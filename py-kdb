@@ -38,8 +38,15 @@ class KDBDatabaseCli(cmd.Cmd):
         if self.is_open():
             self.do_close()
 
-        db = kdbdatabase.Database()
-        db.read(filename)
+        db = kdbdatabase.Database(filename)
+
+        if db.is_locked():
+            open_anyway = self._input_yes_no("Database is already open. Open anyway?", False)
+
+            if not open_anyway:
+                return
+
+        db.read_file()
         db.parse_header()
 
         pw = getpass.getpass("Password: ")
@@ -154,6 +161,9 @@ class KDBDatabaseCli(cmd.Cmd):
                 return e
 
     def _close(self):
+        if self.db:
+            self.db.unlock()
+
         self._init()
 
     def _init(self):
@@ -161,6 +171,36 @@ class KDBDatabaseCli(cmd.Cmd):
         self.cd_stack = list()
         self.root = None
         self.cur_group = None
+
+    def _input_yes_no(self, prompt, default=False):
+        choices = {
+            'y': True,
+            'yes': True,
+            'n': False,
+            'no': False,
+        }
+
+        if default is None:
+            prompt_yn = "y/n"
+        elif default is True:
+            prompt_yn = "Y/n"
+        else:
+            prompt_yn = "y/N"
+
+        prompt = "{0} [{1}]: ".format(prompt, prompt_yn)
+
+        while True:
+            choice = raw_input(prompt).lower()
+
+            if not choice:
+                if default is not None:
+                    return default
+
+                continue
+            try:
+                return choices[choice]
+            except KeyError:
+                pass
 
 
 if __name__ == '__main__':

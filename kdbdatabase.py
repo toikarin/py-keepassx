@@ -4,6 +4,7 @@ import struct
 import getpass
 import datetime
 import utils
+import os
 
 
 class DatabaseException(Exception):
@@ -246,19 +247,43 @@ class BodyParser(object):
 
 
 class Database(object):
-    def __init__(self):
+    def __init__(self, filename):
         self.data = None
         self.header = None
         self.encrypted_data = None
         self.unencrypted = None
+        self.filename = filename
 
-    def read(self, filename):
-        with open(filename, "rb") as f:
+    def is_locked(self):
+        return os.path.exists(self._get_lockfile())
+
+    def lock(self):
+        if self.is_locked():
+            return
+
+        with open(self._get_lockfile(), 'a'):
+            pass
+
+    def unlock(self):
+        try:
+            os.unlink(self._get_lockfile())
+        except OSError:
+            pass
+
+    def open(self, password):
+        self.read_file()
+        self.parse_header()
+        self.decrypt(password)
+        return self.parse()
+
+    def read_file(self):
+        with open(self.filename, "rb") as f:
             self.data = f.read()
 
         if len(self.data) < Header.DB_HEADER_SIZE:
             raise DatabaseException("Unexpected file size (DB_TOTAL_SIZE < DB_HEADER_SIZE)")
 
+        self.lock()
 
     def parse_header(self):
         self.header = Header()
@@ -311,6 +336,9 @@ class Database(object):
         pw_cp1252 = pw.decode("cp1252")
         return utils.sha256(pw_cp1252)
 
+    def _get_lockfile(self):
+        return "{0}.lock".format(self.filename)
+
 
 if __name__ == "__main__":
     import sys
@@ -320,13 +348,9 @@ if __name__ == "__main__":
     else:
         filename = raw_input("Filename: ")
 
-    db = Database()
-    db.read(filename)
-    db.parse_header()
-
+    db = Database(filename)
     pw = getpass.getpass("Password: ")
-    db.decrypt(pw)
-    root = db.parse()
+    root = db.open(pw)
 
     for rg in root.children:
         utils.print_group_tree(rg)
