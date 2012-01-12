@@ -1,0 +1,175 @@
+#!/usr/bin/env python
+
+import kdbdatabase
+import cmd
+import getpass
+
+
+class KDBDatabaseCli(cmd.Cmd):
+    def __init__(self, filename=None):
+        self.cd_stack = list()
+        self.cur_group = None
+
+        cmd.Cmd.__init__(self)
+
+        self._init()
+
+        if filename:
+            self.do_open(filename)
+
+        self.prompt = "[Kdb]: "
+
+    def help_help(self):
+        print("Show help")
+
+    def help_open(self):
+        print("Open the given database file.")
+        print("")
+        self.usage_open()
+
+    def usage_open(self):
+        print("Usage: open <filename>")
+
+    def do_open(self, filename):
+        if not filename:
+            self.usage_open()
+            return
+
+        if self.is_open():
+            self.do_close()
+
+        db = kdbdatabase.Database()
+        db.read(filename)
+        db.parse_header()
+
+        pw = getpass.getpass("Password: ")
+        db.decrypt(pw)
+
+        self.root = db.parse()
+        self.cur_group = self.root
+        self.db = db
+
+        print("Opened.")
+
+    def help_close(self):
+        print("Close the currently open database.")
+
+    def do_close(self, _=None):
+        if not self.db:
+            print("No database currently open.")
+            return
+
+        self._close()
+
+    def help_cat(self):
+        print("Read the given entry.")
+
+    def do_cat(self, entry_name):
+        if not self.is_open():
+            print("cat: No database currently opened")
+            return
+
+        entry = self._get_entry(entry_name)
+
+        if not entry:
+            print("cat: No such entry")
+            return
+
+        print("{title}".format(title=entry.title))
+        print("{sep}".format(sep="-" * len(entry.title)))
+        print("")
+        print("url:     {url}".format(url=entry.url))
+        print("user:    {user}".format(user=entry.username))
+        print("pass:    <<secret>>")
+        print("comment: {comment}".format(comment=entry.comment))
+
+    def help_passwd(self):
+        print("Show the password of the given entry.")
+
+    def do_passwd(self, entry_name):
+        if not self.is_open():
+            print("passwd: No database currently opened")
+            return
+
+        entry = self._get_entry(entry_name)
+
+        if not entry:
+            print("passwd: No such entry")
+            return
+
+        print("passwd: {pw}".format(pw=entry.password))
+
+    def help_ls(self):
+        print("Show entries in current working group.")
+
+    def do_ls(self, _):
+        if not self.is_open():
+            print("ls: No database currently opened")
+            return
+
+        for g in self.cur_group.children:
+            print("+ {title}".format(title=g.title))
+        for e in self.cur_group.entries:
+            print("x {title}".format(title=e.title))
+
+    def help_cd(self):
+        print("Change the working group.")
+
+    def do_cd(self, path):
+        if not self.is_open():
+            print("cd: No database currently opened")
+            return
+
+        new_group = None
+
+        if path == "..":
+            try:
+                new_group = self.cd_stack.pop()
+            except IndexError:
+                new_group = self.cur_group
+        else:
+            for g in self.cur_group.children:
+                if g.title == path:
+                    new_group = g
+                    break
+
+        if new_group:
+            if self.cur_group.level < new_group.level:
+                self.cd_stack.append(self.cur_group)
+            self.cur_group = new_group
+        else:
+            print("cd: No such group")
+
+    def do_quit(self, _):
+        print("Bye.")
+        self._close()
+        return True
+
+    def is_open(self):
+        return self.db is not None
+
+    def _get_entry(self, entry_name):
+        for e in self.cur_group.entries:
+            if e.title == entry_name:
+                return e
+
+    def _close(self):
+        self._init()
+
+    def _init(self):
+        self.db = None
+        self.cd_stack = list()
+        self.root = None
+        self.cur_group = None
+
+
+if __name__ == '__main__':
+    import sys
+
+    try:
+        filename = None
+        if len(sys.argv) > 1:
+            filename = sys.argv[1]
+        KDBDatabaseCli(filename).cmdloop()
+    except KeyboardInterrupt:
+        pass
