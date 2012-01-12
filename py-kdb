@@ -4,6 +4,7 @@ import kdbdatabase
 import cmd
 import getpass
 import os
+import functools
 
 HIST_FILE = os.path.expanduser("~/.py-kdb.history")
 
@@ -159,6 +160,20 @@ class KDBDatabaseCli(cmd.Cmd):
             print("+ {title}".format(title=g.title))
         for e in sorted(self.cur_group.entries, key=lambda x: x.title.lower() if x else x):
             print("x {title}".format(title=e.title))
+
+    def help_clear(self, _):
+        print("Clear the screen.")
+
+    def do_clear(self, _):
+        cmds = {
+            'nt': functools.partial(os.system, 'cls'),
+            'posix': functools.partial(os.system, 'clear'),
+        }
+
+        try:
+            cmds[os.name]()
+        except KeyError:
+            print("Don't know how to clear screen in {os}.".format(os=os.name))
 
     def help_cd(self):
         print("Change the working group.")
