@@ -94,13 +94,13 @@ class KDBDatabaseCli(cmd.Cmd):
 
             pw = getpass.getpass("Password: ")
             db.decrypt(pw)
+            db.parse_body()
+            self.db = db
         except kdbdatabase.DatabaseException as e:
             print e.message
             return
 
-        self.root = db.parse()
-        self.cur_group = self.root
-        self.db = db
+        self.cur_group = self.db.get_root_group()
 
         print("Opened.")
 
@@ -259,7 +259,6 @@ class KDBDatabaseCli(cmd.Cmd):
     def _init(self):
         self.db = None
         self.cd_stack = list()
-        self.root = None
         self.cur_group = None
 
     def _input_yes_no(self, prompt, default=False):

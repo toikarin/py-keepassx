@@ -92,24 +92,26 @@ class Group(object):
         self.entries = list()
 
 
-class BodyParser(object):
-    def __init__(self, unencrypted_data, header):
-        self.data = unencrypted_data
-        self.header = header
+class Body(object):
+    def __init__(self, unencrypted_data, num_groups, num_entries):
+        self._data = unencrypted_data
+        self._num_groups = num_groups
+        self._num_entries = num_entries
+
         self.root = Group()
         self.meta_entries = list()
 
     def parse(self):
-        groups, pos = self.generic_parse(Group, self.header.num_groups, 0, self.read_group_field)
-        entries, pos = self.generic_parse(Entry, self.header.num_entries, pos, self.read_entry_field)
+        groups, pos = self._generic_parse(Group, self._num_groups, 0, self._read_group_field)
+        entries, pos = self._generic_parse(Entry, self._num_entries, pos, self._read_entry_field)
 
         # Separate entries and meta entries
         entries, self.meta_entries = utils.partition(lambda x: not x.is_meta_stream(), entries)
 
-        self.create_group_tree(groups)
-        self.map_entries_to_groups(groups, entries)
+        self._create_group_tree(groups)
+        self._map_entries_to_groups(groups, entries)
 
-    def map_entries_to_groups(self, groups, entries):
+    def _map_entries_to_groups(self, groups, entries):
         gdict = dict()
         for g in groups:
             gdict[g.id] = g
@@ -117,21 +119,7 @@ class BodyParser(object):
         for e in entries:
             gdict[e.group_id].entries.append(e)
 
-    def find_entry(self, name, group=None):
-        if not group:
-            group = self.root
-
-        for g in group.children:
-            for e in g.entries:
-                if e.title == name:
-                    return e
-
-            for child in g.children:
-                retval = self.find_entry(name, child)
-                if retval:
-                    return retval
-
-    def create_group_tree(self, groups):
+    def _create_group_tree(self, groups):
         num_groups = len(groups)
 
         for i in range(num_groups):
@@ -149,16 +137,16 @@ class BodyParser(object):
 
                 parent.children.append(groups[i])
 
-    def generic_parse(self, cls, num_entries, pos, func):
+    def _generic_parse(self, cls, num_entries, pos, func):
         cur_entry = 0
         cur_obj = cls()
         entries = list()
 
         while cur_entry < num_entries:
-            field_type, field_size = struct.unpack_from("<HI", self.data[pos:])
+            field_type, field_size = struct.unpack_from("<HI", self._data[pos:])
             pos += 6
 
-            retval = func(cur_obj, field_type, self.data[pos:pos + field_size])
+            retval = func(cur_obj, field_type, self._data[pos:pos + field_size])
 
             if field_type == 0xFFFF and retval:
                 entries.append(cur_obj)
@@ -169,7 +157,7 @@ class BodyParser(object):
 
         return entries, pos
 
-    def read_entry_field(self, obj, field_type, field_data):
+    def _read_entry_field(self, obj, field_type, field_data):
         if field_type == 0x0000:
             # ignore field
             pass
@@ -220,7 +208,7 @@ class BodyParser(object):
 
         return datetime.datetime(year=y, month=mon, day=d, hour=h, minute=m, second=s)
 
-    def read_group_field(self, obj, field_type, field_data):
+    def _read_group_field(self, obj, field_type, field_data):
         if field_type == 0x0000:
             # ignore field
             pass
@@ -248,11 +236,10 @@ class BodyParser(object):
 
 class Database(object):
     def __init__(self, filename):
-        self.data = None
-        self.header = None
-        self.encrypted_data = None
-        self.unencrypted = None
-        self.filename = filename
+        self._data = None
+        self._header = None
+        self._unencrypted_data = None
+        self._filename = filename
 
     def is_locked(self):
         return os.path.exists(self._get_lockfile())
@@ -274,52 +261,53 @@ class Database(object):
         self.read_file()
         self.parse_header()
         self.decrypt(password)
-        return self.parse()
+        self.parse_body()
+        return self.get_root_group()
 
     def read_file(self):
         try:
-            with open(self.filename, "rb") as f:
-                self.data = f.read()
+            with open(self._filename, "rb") as f:
+                self._data = f.read()
         except IOError as e:
             raise DatabaseException(e)
 
-        if len(self.data) < Header.DB_HEADER_SIZE:
+        if len(self._data) < Header.DB_HEADER_SIZE:
             raise DatabaseException("Unexpected file size (DB_TOTAL_SIZE < DB_HEADER_SIZE)")
 
         self.lock()
 
     def parse_header(self):
-        self.header = Header()
-        self.header.parse_header(self.data[:Header.DB_HEADER_SIZE])
-        self.encrypted_data = self.data[Header.DB_HEADER_SIZE:]
+        self._header = Header()
+        self._header.parse_header(self._data[:Header.DB_HEADER_SIZE])
 
     def decrypt(self, password):
         raw_master_key = self._get_master_key(password)
-        master_key = self._transform(raw_master_key, self.header.transf_random_seed, self.header.key_transf_rounds)
-        final_key = utils.sha256([self.header.final_random_seed, master_key])
+        master_key = self._transform(raw_master_key, self._header.transf_random_seed, self._header.key_transf_rounds)
+        final_key = utils.sha256([self._header.final_random_seed, master_key])
 
-        if (self.header.cipher == Header.RIJNDAEL_CIPHER):
-            cipher = AES.new(final_key, AES.MODE_CBC, self.header.encryption_iv)
-            self.unencrypted = cipher.decrypt(self.data[Header.DB_HEADER_SIZE:])
+        if (self._header.cipher == Header.RIJNDAEL_CIPHER):
+            cipher = AES.new(final_key, AES.MODE_CBC, self._header.encryption_iv)
+            self._unencrypted_data = cipher.decrypt(self._data[Header.DB_HEADER_SIZE:])
 
-            last_byte = struct.unpack_from('B', self.unencrypted[-1])[0]
-            crypto_size = len(self.data) - last_byte - Header.DB_HEADER_SIZE
+            last_byte = struct.unpack_from('B', self._unencrypted_data[-1])[0]
+            crypto_size = len(self._data) - last_byte - Header.DB_HEADER_SIZE
         else:
             raise DatabaseException("Unknown encryption algorithm.")
 
         if crypto_size > 214783446 or (not crypto_size and self.num_groups):
             raise DatabaseException("Decryption failed. The key is wrong or the file is damaged.")
 
-        final_key = utils.sha256(self.unencrypted[:crypto_size])
+        final_key = utils.sha256(self._unencrypted_data[:crypto_size])
 
-        if self.header.contents_hash != final_key:
+        if self._header.contents_hash != final_key:
             raise DatabaseException("Hash test failed. The key is wrong or the file is damaged.")
 
-    def parse(self):
-        bp = BodyParser(self.unencrypted, self.header)
-        bp.parse()
-        self.bp = bp
-        return bp.root
+    def parse_body(self):
+        self.bp = Body(self._unencrypted_data, self._header.num_groups, self._header.num_entries)
+        self.bp.parse()
+
+    def get_root_group(self):
+        return self.bp.root
 
     def _transform(self, src, key, rounds):
         kt_left = self._key_transform(src[:16], key, rounds)
@@ -340,7 +328,7 @@ class Database(object):
         return utils.sha256(pw_cp1252)
 
     def _get_lockfile(self):
-        return "{0}.lock".format(self.filename)
+        return "{0}.lock".format(self._filename)
 
 
 if __name__ == "__main__":
@@ -353,7 +341,7 @@ if __name__ == "__main__":
 
     db = Database(filename)
     pw = getpass.getpass("Password: ")
-    root = db.open(pw)
+    db.open(pw)
 
-    for rg in root.children:
+    for rg in db.get_root_group().children:
         utils.print_group_tree(rg)
