@@ -3,10 +3,8 @@
 import kdbdatabase
 import cmd
 import getpass
-import readline
 import os
 
-readline.set_completer_delims(" ")
 
 
 class KDBDatabaseCli(cmd.Cmd):
@@ -247,6 +245,9 @@ class KDBDatabaseCli(cmd.Cmd):
 
 if __name__ == '__main__':
     import sys
+    import readline
+
+    readline.set_completer_delims(" ")
 
     try:
         filename = None
