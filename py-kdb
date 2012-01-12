@@ -5,6 +5,7 @@ import cmd
 import getpass
 import os
 
+HIST_FILE = os.path.expanduser("~/.py-kdb.history")
 
 
 class KDBDatabaseCli(cmd.Cmd):
@@ -249,6 +250,9 @@ if __name__ == '__main__':
 
     readline.set_completer_delims(" ")
 
+    if os.path.exists(HIST_FILE):
+        readline.read_history_file(HIST_FILE)
+
     try:
         filename = None
         if len(sys.argv) > 1:
@@ -256,3 +260,5 @@ if __name__ == '__main__':
         KDBDatabaseCli(filename).cmdloop()
     except KeyboardInterrupt:
         pass
+
+    readline.write_history_file(HIST_FILE)
