@@ -277,8 +277,11 @@ class Database(object):
         return self.parse()
 
     def read_file(self):
-        with open(self.filename, "rb") as f:
-            self.data = f.read()
+        try:
+            with open(self.filename, "rb") as f:
+                self.data = f.read()
+        except IOError as e:
+            raise DatabaseException(e)
 
         if len(self.data) < Header.DB_HEADER_SIZE:
             raise DatabaseException("Unexpected file size (DB_TOTAL_SIZE < DB_HEADER_SIZE)")

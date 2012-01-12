@@ -88,11 +88,15 @@ class KDBDatabaseCli(cmd.Cmd):
             if not open_anyway:
                 return
 
-        db.read_file()
-        db.parse_header()
+        try:
+            db.read_file()
+            db.parse_header()
 
-        pw = getpass.getpass("Password: ")
-        db.decrypt(pw)
+            pw = getpass.getpass("Password: ")
+            db.decrypt(pw)
+        except kdbdatabase.DatabaseException as e:
+            print e.message
+            return
 
         self.root = db.parse()
         self.cur_group = self.root
