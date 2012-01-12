@@ -301,13 +301,19 @@ if __name__ == '__main__':
 
     if os.path.exists(HIST_FILE):
         readline.read_history_file(HIST_FILE)
+    cli = None
 
     try:
         filename = None
         if len(sys.argv) > 1:
             filename = sys.argv[1]
-        KDBDatabaseCli(filename).cmdloop()
+
+        cli = KDBDatabaseCli(filename)
+        cli.cmdloop()
     except KeyboardInterrupt:
         pass
+    finally:
+        if cli and cli.is_open():
+            cli.do_close()
 
     readline.write_history_file(HIST_FILE)
