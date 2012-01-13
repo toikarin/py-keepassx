@@ -155,18 +155,21 @@ class Body(object):
         self._num_groups = num_groups
         self._num_entries = num_entries
 
+        self._groups = list()
+        self._entries = list()
+
         self.root = Group()
         self.meta_entries = list()
 
     def parse(self):
-        groups, pos = self._generic_parse(Group, self._num_groups, 0, self._read_group_field)
-        entries, pos = self._generic_parse(Entry, self._num_entries, pos, self._read_entry_field)
+        self._groups, pos = self._generic_parse(Group, self._num_groups, 0, self._read_group_field)
+        self._entries, pos = self._generic_parse(Entry, self._num_entries, pos, self._read_entry_field)
 
         # Separate entries and meta entries
-        entries, self.meta_entries = utils.partition(lambda x: not x.is_meta_stream(), entries)
+        entries, self.meta_entries = utils.partition(lambda x: not x.is_meta_stream(), self._entries)
 
-        self._create_group_tree(groups)
-        self._map_entries_to_groups(groups, entries)
+        self._create_group_tree(self._groups)
+        self._map_entries_to_groups(self._groups, entries)
 
     def _map_entries_to_groups(self, groups, entries):
         gdict = dict()
@@ -343,11 +346,11 @@ class Database(object):
             raise DatabaseException("Hash test failed. The key is wrong or the file is damaged.")
 
     def parse_body(self):
-        self.bp = Body(self._unencrypted_data, self._header.num_groups, self._header.num_entries)
-        self.bp.parse()
+        self._body = Body(self._unencrypted_data, self._header.num_groups, self._header.num_entries)
+        self._body.parse()
 
     def get_root_group(self):
-        return self.bp.root
+        return self._body.root
 
     def _generate_key(self, password):
         raw_master_key = self._get_master_key(password)
