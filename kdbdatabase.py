@@ -418,6 +418,35 @@ class Database(object):
     def get_root_group(self):
         return self._body.root
 
+    def _serialize(self, password):
+        # Update header
+        self._header.num_groups = len(db._body._groups)
+        self._header.num_entries = len(db._body._entries)
+        self._header.final_random_seed = crypto.randomize(16)
+        self._header.encryption_iv = crypto.randomize(16)
+
+        # Generate body
+        body = str()
+
+        for g in db._body._groups:
+            body += g.to_bytearray()
+
+        for e in db._body._entries:
+            body += e.to_bytearray()
+
+        # Calculate hash from the body
+        self._header.contents_hash = crypto.sha256(body)
+
+        # Encrypt body
+        encrypted = crypto.encrypt(body, self._generate_key(password), self._header.encryption_iv)
+
+        # Generate file content
+        data = str()
+        data += self._header.to_bytearray()
+        data += encrypted
+
+        return data
+
     def _generate_key(self, password):
         raw_master_key = self._get_master_key(password)
         master_key = crypto.transform(raw_master_key, self._header.transf_random_seed, self._header.key_transf_rounds)
