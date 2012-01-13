@@ -18,6 +18,6 @@ def partition(pred, iterables):
 def print_group_tree(group, level=0):
     print("{indent}***[{title}]***".format(indent=" " * level, title=group.title))
     for e in group.entries:
-        print("{indent}-{title}".format(level=" " * (level + 2), title=e.title))
+        print("{indent}-{title}".format(indent=" " * (level + 2), title=e.title))
     for g in group.children:
         print_group_tree(g, level + 4)
