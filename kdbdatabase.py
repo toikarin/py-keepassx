@@ -98,6 +98,10 @@ class Entry(object):
         self.username = None
         self.password = None
         self.comment = None
+        self.creation = None
+        self.last_mod = None
+        self.last_access = None
+        self.expire = None
         self.binary_desc = None
         self.binary = None
 
@@ -134,10 +138,15 @@ class Group(object):
     def __init__(self):
         self.id = None
         self.title = None
+        self.creation = None
+        self.last_mod = None
+        self.last_access = None
+        self.expire = None
         self.image = None
         self.level = None
         self.children = list()
         self.entries = list()
+        self.flags = 0  # unused
 
 
 class Body(object):
