@@ -52,6 +52,22 @@ class Header(object):
 
 
 class Entry(object):
+    FIELD_TYPE_UUID = 0x0001
+    FIELD_TYPE_GROUP_ID = 0x0002
+    FIELD_TYPE_IMAGE = 0x0003
+    FIELD_TYPE_TITLE = 0x0004
+    FIELD_TYPE_URL = 0x0005
+    FIELD_TYPE_USERNAME = 0x0006
+    FIELD_TYPE_PASSWORD = 0x0007
+    FIELD_TYPE_COMMENT = 0x0008
+    FIELD_TYPE_CREATION = 0x0009
+    FIELD_TYPE_LAST_MOD = 0x000A
+    FIELD_TYPE_LAST_ACCESS = 0x000B
+    FIELD_TYPE_EXPIRE = 0x000C
+    FIELD_TYPE_BINARY_DESC = 0x000D
+    FIELD_TYPE_BINARY = 0x000E
+    FIELD_TYPE_END = 0xFFFF
+
     def __init__(self):
         self.uuid = None
         self.group_id = None
@@ -83,6 +99,17 @@ class Entry(object):
 
 
 class Group(object):
+    FIELD_TYPE_ID = 0x0001
+    FIELD_TYPE_TITLE = 0x0002
+    FIELD_TYPE_CREATION = 0x0003
+    FIELD_TYPE_LAST_MOD = 0x0004
+    FIELD_TYPE_LAST_ACCESS = 0x0005
+    FIELD_TYPE_EXPIRE = 0x0006
+    FIELD_TYPE_IMAGE = 0x0007
+    FIELD_TYPE_LEVEL = 0x0008
+    FIELD_TYPE_FLAGS = 0x0009
+    FIELD_TYPE_END = 0xFFFF
+
     def __init__(self):
         self.id = None
         self.title = None
@@ -161,72 +188,60 @@ class Body(object):
         if field_type == 0x0000:
             # ignore field
             pass
-        elif field_type == 0x0001:
+        elif field_type == Entry.FIELD_TYPE_UUID:
             obj.uuid = uuid.UUID(bytes=field_data)
-        elif field_type == 0x0002:
+        elif field_type == Entry.FIELD_TYPE_GROUP_ID:
             obj.group_id = struct.unpack_from('<I', field_data)[0]
-        elif field_type == 0x0003:
+        elif field_type == Entry.FIELD_TYPE_IMAGE:
             obj.image = struct.unpack_from('<I', field_data)[0]
-        elif field_type == 0x0004:
+        elif field_type == Entry.FIELD_TYPE_TITLE:
             obj.title = str(field_data)[:-1]
-        elif field_type == 0x0005:
+        elif field_type == Entry.FIELD_TYPE_URL:
             obj.url = str(field_data)[:-1]
-        elif field_type == 0x0006:
+        elif field_type == Entry.FIELD_TYPE_USERNAME:
             obj.username = str(field_data)[:-1]
-        elif field_type == 0x0007:
+        elif field_type == Entry.FIELD_TYPE_PASSWORD:
             obj.password = str(field_data)[:-1]
-        elif field_type == 0x0008:
+        elif field_type == Entry.FIELD_TYPE_COMMENT:
             obj.comment = str(field_data)[:-1]
-        elif field_type == 0x0009:
-            obj.creation = self._read_date(field_data)
-        elif field_type == 0x000A:
-            obj.last_mod = self._read_date(field_data)
-        elif field_type == 0x000B:
-            obj.last_access = self._read_date(field_data)
-        elif field_type == 0x000C:
-            obj.expire = self._read_date(field_data)
-        elif field_type == 0x000D:
+        elif field_type == Entry.FIELD_TYPE_CREATION:
+            obj.creation = to_datetime(field_data)
+        elif field_type == Entry.FIELD_TYPE_LAST_MOD:
+            obj.last_mod = to_datetime(field_data)
+        elif field_type == Entry.FIELD_TYPE_LAST_ACCESS:
+            obj.last_access = to_datetime(field_data)
+        elif field_type == Entry.FIELD_TYPE_EXPIRE:
+            obj.expire = to_datetime(field_data)
+        elif field_type == Entry.FIELD_TYPE_BINARY_DESC:
             obj.binary_desc = str(field_data)[:-1]
-        elif field_type == 0x000E:
+        elif field_type == Entry.FIELD_TYPE_BINARY:
             obj.binary = bytearray(field_data)
-        elif field_type == 0xFFFF:
+        elif field_type == Entry.FIELD_TYPE_END:
             pass
         else:
             return False  # field unsupported
 
         return True  # field supported
 
-    def _read_date(self, data):
-        dw1, dw2, dw3, dw4, dw5 = struct.unpack_from('BBBBB', data)
-
-        y = (dw1 << 6) | (dw2 >> 2)
-        mon = ((dw2 & 0x00000003) << 2) | (dw3 >> 6)
-        d = (dw3 >> 1) & 0x0000001F
-        h = ((dw3 & 0x00000001) << 4) | (dw4 >> 4)
-        m = ((dw4 & 0x0000000F) << 2) | (dw5 >> 6)
-        s = dw5 & 0x0000003F
-
-        return datetime.datetime(year=y, month=mon, day=d, hour=h, minute=m, second=s)
-
     def _read_group_field(self, obj, field_type, field_data):
         if field_type == 0x0000:
             # ignore field
             pass
-        elif field_type == 0x0001:
+        elif field_type == Group.FIELD_TYPE_ID:
             obj.id = struct.unpack_from('<I', field_data)[0]
-        elif field_type == 0x0002:
+        elif field_type == Group.FIELD_TYPE_TITLE:
             obj.title = str(field_data)[:-1]
-        elif 0x0003 >= field_type <= 0x0006:
+        elif Group.FIELD_TYPE_CREATION >= field_type <= Group.FIELD_TYPE_EXPIRE:
             # not longer used by KeePassX but part of the KDB format
             pass
-        elif field_type == 0x0007:
+        elif field_type == Group.FIELD_TYPE_IMAGE:
             obj.image = struct.unpack_from('<I', field_data)[0]
-        elif field_type == 0x0008:
+        elif field_type == Group.FIELD_TYPE_LEVEL:
             obj.level = struct.unpack_from('<H', field_data)[0]
-        elif field_type == 0x0009:
+        elif field_type == Group.FIELD_TYPE_FLAGS:
             # not longer used by KeePassX but part of the KDB format
             pass
-        elif field_type == 0xFFFF:
+        elif field_type == Group.FIELD_TYPE_END:
             pass
         else:
             return False  # field unsupported
@@ -329,6 +344,19 @@ class Database(object):
 
     def _get_lockfile(self):
         return "{0}.lock".format(self._filename)
+
+
+def to_datetime(data):
+    dw1, dw2, dw3, dw4, dw5 = struct.unpack_from('<BBBBB', data)
+
+    y = (dw1 << 6) | (dw2 >> 2)
+    mon = ((dw2 & 0x00000003) << 2) | (dw3 >> 6)
+    d = (dw3 >> 1) & 0x0000001F
+    h = ((dw3 & 0x00000001) << 4) | (dw4 >> 4)
+    m = ((dw4 & 0x0000000F) << 2) | (dw5 >> 6)
+    s = dw5 & 0x0000003F
+
+    return datetime.datetime(year=y, month=mon, day=d, hour=h, minute=m, second=s)
 
 
 if __name__ == "__main__":
