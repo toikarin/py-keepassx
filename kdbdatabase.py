@@ -44,6 +44,18 @@ class Header(object):
         else:
             self._parse_header(data)
 
+    def to_bytearray(self):
+        args = [self.signature1, self.signature2, self.flags, self.version]
+        args.extend(bytearray(self.final_random_seed))
+        args.extend(bytearray(self.encryption_iv))
+        args.append(self.num_groups)
+        args.append(self.num_entries)
+        args.extend(bytearray(self.contents_hash))
+        args.extend(bytearray(self.transf_random_seed))
+        args.append(self.key_transf_rounds)
+
+        return struct.pack(Header.PACK_STR, *args)
+
     def _parse_header(self, data):
         if len(data) < Header.DB_HEADER_SIZE:
             raise HeaderException("Unexpected file size (DB_TOTAL_SIZE < DB_HEADER_SIZE)")
@@ -122,6 +134,40 @@ class Entry(object):
             return False
         return True
 
+    def to_bytearray(self):
+        data = (
+            Entry.FIELD_TYPE_UUID, 16, self.uuid.bytes,
+            Entry.FIELD_TYPE_GROUP_ID, 4, self.group_id,
+            Entry.FIELD_TYPE_IMAGE, 4, self.image,
+            Entry.FIELD_TYPE_TITLE, xstr(self.title),
+            Entry.FIELD_TYPE_URL, xstr(self.url),
+            Entry.FIELD_TYPE_USERNAME, xstr(self.username),
+            Entry.FIELD_TYPE_PASSWORD, xstr(self.password),
+            Entry.FIELD_TYPE_COMMENT, xstr(self.comment),
+            Entry.FIELD_TYPE_CREATION, 5, from_datetime(self.creation),
+            Entry.FIELD_TYPE_LAST_MOD, 5, from_datetime(self.last_mod),
+            Entry.FIELD_TYPE_LAST_ACCESS, 5, from_datetime(self.last_access),
+            Entry.FIELD_TYPE_EXPIRE, 5, from_datetime(self.expire),
+            Entry.FIELD_TYPE_BINARY_DESC, xstr(self.binary_desc),
+            Entry.FIELD_TYPE_BINARY, xstr(self.binary, True),
+            Entry.FIELD_TYPE_END, 0
+        )
+
+        pack_fmt = '<HI16c HII HII HI{title_len}B HI{url_len}B HI{username_len}B HI{password_len}B'
+        pack_fmt += ' HI{comment_len}B HI5B HI5B HI5B HI5B HI{binary_desc_len}B HI{binary_len}B HI'
+
+        pack_fmt = pack_fmt.format(
+            title_len=xlen(self.title),
+            url_len=xlen(self.url),
+            username_len=xlen(self.username),
+            password_len=xlen(self.password),
+            comment_len=xlen(self.comment),
+            binary_desc_len=xlen(self.binary_desc),
+            binary_len=xlen(self.binary, True),
+        )
+
+        return struct.pack(pack_fmt, *utils.flatten(data))
+
 
 class Group(object):
     FIELD_TYPE_ID = 0x0001
@@ -147,6 +193,26 @@ class Group(object):
         self.children = list()
         self.entries = list()
         self.flags = 0  # unused
+
+    def to_bytearray(self):
+        data = (
+            Group.FIELD_TYPE_ID, 4, self.id,
+            Group.FIELD_TYPE_TITLE, xstr(self.title),
+            Group.FIELD_TYPE_CREATION, 5, from_datetime(self.creation),
+            Group.FIELD_TYPE_LAST_MOD, 5, from_datetime(self.last_mod),
+            Group.FIELD_TYPE_LAST_ACCESS, 5, from_datetime(self.last_access),
+            Group.FIELD_TYPE_EXPIRE, 5, from_datetime(self.expire),
+            Group.FIELD_TYPE_IMAGE, 4, self.image,
+            Group.FIELD_TYPE_LEVEL, 2, self.level,
+            Group.FIELD_TYPE_FLAGS, 4, self.flags,
+            Group.FIELD_TYPE_END, 0
+        )
+
+        pack_fmt = '<HII HI{title_len}B HI5B HI5B HI5B HI5B HII HIH HII HI'.format(
+            title_len=xlen(self.title),
+        )
+
+        return struct.pack(pack_fmt, *utils.flatten(data))
 
 
 class Body(object):
@@ -363,6 +429,45 @@ class Database(object):
 
     def _get_lockfile(self):
         return "{0}.lock".format(self._filename)
+
+
+def xstr(s, is_binary=False):
+    if s:
+        if not is_binary:
+            ba = bytearray(s)
+            ba.append(0)
+        else:
+            ba = s
+
+        return (len(ba), ba)
+    else:
+        return (1, 0)
+
+
+def xlen(x, is_binary=False):
+    if not is_binary:
+        return len(x) + 1 if x else 1
+    else:
+        return len(x) if x else 1
+
+
+def from_datetime(d):
+    if not d:
+        return _from_datetime(0, 0, 0, 0, 0, 0)
+    else:
+        return _from_datetime(d.year, d.month, d.day, d.hour, d.minute, d.second)
+
+
+def _from_datetime(year, month, day, hour, minute, second):
+    s = [0, 0, 0, 0, 0]
+
+    s[0] = year >> 6 & 0x0000003F
+    s[1] = ((year & 0x0000003F) << 2) | (month >> 2 & 0x00000003)
+    s[2] = ((month & 0x00000003) << 6) | ((day & 0x0000001F) << 1) | ((hour >> 4) & 0x00000001)
+    s[3] = ((hour & 0x0000000F) << 4) | ((minute >> 2) & 0x0000000F)
+    s[4] = ((minute & 0x00000003) << 6) | (second & 0x0000003F)
+
+    return s
 
 
 def to_datetime(data):
