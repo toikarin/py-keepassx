@@ -25,17 +25,37 @@ class Header(object):
     RIJNDAEL_CIPHER = 0
     TWOFISH_CIPHER = 1
 
-    def parse_header(self, data):
+    PACK_STR = '<4I 16B 16B II 32B 32B I'
+
+    def __init__(self, data=None):
+        if not data:
+            self.signature1 = Header.PWM_DBSIG_1
+            self.signature2 = Header.PWM_DBSIG_2
+            self.flags = Header.PWM_FLAG_RIJNDAEL
+            self.version = Header.PWM_DBVER_DW
+            self.final_random_seed = None
+            self.encryption_iv = None
+            self.num_groups = 0
+            self.num_entries = 0
+            self.contents_hash = None
+            self.transf_random_seed = None
+            self.key_transf_rounds = 0
+        else:
+            self._parse_header(data)
+
+    def _parse_header(self, data):
         if len(data) < Header.DB_HEADER_SIZE:
             raise HeaderException("Unexpected file size (DB_TOTAL_SIZE < DB_HEADER_SIZE)")
 
-        self.signature1, self.signature2, self.flags, self.version = struct.unpack_from('<IIII', data)
-        self.final_random_seed = str(bytearray(struct.unpack_from("16B", data, 16)))
-        self.encryption_iv = str(bytearray(struct.unpack_from("16B", data, 32)))
-        self.num_groups, self.num_entries, = struct.unpack_from('<II', data, 48)
-        self.contents_hash = str(bytearray(struct.unpack_from("32B", data, 56)))
-        self.transf_random_seed = str(bytearray(struct.unpack_from("32B", data, 88)))
-        self.key_transf_rounds = struct.unpack_from('<I', data, 120)[0]
+        unpacked = struct.unpack_from(Header.PACK_STR, data)
+
+        self.signature1, self.signature2, self.flags, self.version = unpacked[:4]
+        self.final_random_seed = str(bytearray(unpacked[4:20]))
+        self.encryption_iv = str(bytearray(unpacked[20:36]))
+        self.num_groups, self.num_entries = unpacked[36:38]
+        self.contents_hash = str(bytearray(unpacked[38:70]))
+        self.transf_random_seed = str(bytearray(unpacked[70:102]))
+        self.key_transf_rounds = unpacked[102]
 
         if self.signature1 != Header.PWM_DBSIG_1 or self.signature2 != Header.PWM_DBSIG_2:
             raise HeaderException("Wrong signature")
@@ -292,8 +312,7 @@ class Database(object):
         self.lock()
 
     def parse_header(self):
-        self._header = Header()
-        self._header.parse_header(self._data[:Header.DB_HEADER_SIZE])
+        self._header = Header(self._data[:Header.DB_HEADER_SIZE])
 
     def decrypt(self, password):
         raw_master_key = self._get_master_key(password)
