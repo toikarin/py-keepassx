@@ -1,10 +1,11 @@
-from Crypto.Cipher import AES
 import uuid
 import struct
 import getpass
 import datetime
-import utils
 import os
+
+import utils
+import crypto
 
 
 class DatabaseException(Exception):
@@ -315,25 +316,21 @@ class Database(object):
         self._header = Header(self._data[:Header.DB_HEADER_SIZE])
 
     def decrypt(self, password):
-        raw_master_key = self._get_master_key(password)
-        master_key = self._transform(raw_master_key, self._header.transf_random_seed, self._header.key_transf_rounds)
-        final_key = utils.sha256([self._header.final_random_seed, master_key])
+        final_key = self._generate_key(password)
 
         if (self._header.cipher == Header.RIJNDAEL_CIPHER):
-            cipher = AES.new(final_key, AES.MODE_CBC, self._header.encryption_iv)
-            self._unencrypted_data = cipher.decrypt(self._data[Header.DB_HEADER_SIZE:])
+            self._unencrypted_data = crypto.decrypt_aes(final_key, self._header.encryption_iv, self._data[Header.DB_HEADER_SIZE:])
 
-            last_byte = struct.unpack_from('B', self._unencrypted_data[-1])[0]
-            crypto_size = len(self._data) - last_byte - Header.DB_HEADER_SIZE
+            crypto_size = len(self._unencrypted_data)
         else:
             raise DatabaseException("Unknown encryption algorithm.")
 
         if crypto_size > 214783446 or (not crypto_size and self.num_groups):
             raise DatabaseException("Decryption failed. The key is wrong or the file is damaged.")
 
-        final_key = utils.sha256(self._unencrypted_data[:crypto_size])
+        contents_hash = crypto.sha256(self._unencrypted_data[:crypto_size])
 
-        if self._header.contents_hash != final_key:
+        if self._header.contents_hash != contents_hash:
             raise DatabaseException("Hash test failed. The key is wrong or the file is damaged.")
 
     def parse_body(self):
@@ -343,23 +340,14 @@ class Database(object):
     def get_root_group(self):
         return self.bp.root
 
-    def _transform(self, src, key, rounds):
-        kt_left = self._key_transform(src[:16], key, rounds)
-        kt_right = self._key_transform(src[16:], key, rounds)
-
-        return utils.sha256(kt_left + kt_right)
-
-    def _key_transform(self, data, key, rounds):
-        cipher = AES.new(key, AES.MODE_ECB)
-
-        for i in range(rounds):
-            data = cipher.encrypt(data)
-
-        return data
+    def _generate_key(self, password):
+        raw_master_key = self._get_master_key(password)
+        master_key = crypto.transform(raw_master_key, self._header.transf_random_seed, self._header.key_transf_rounds)
+        return crypto.sha256([self._header.final_random_seed, master_key])
 
     def _get_master_key(self, pw):
         pw_cp1252 = pw.decode("cp1252")
-        return utils.sha256(pw_cp1252)
+        return crypto.sha256(pw_cp1252)
 
     def _get_lockfile(self):
         return "{0}.lock".format(self._filename)

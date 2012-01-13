@@ -1,4 +1,3 @@
-import hashlib
 
 
 def partition(pred, iterables):
@@ -14,15 +13,6 @@ def partition(pred, iterables):
     return trues, falses
 
 
-def sha256(lst):
-    m = hashlib.sha256()
-
-    if isinstance(lst, basestring):
-        m.update(lst)
-    else:
-        for i in lst:
-            m.update(i)
-    return m.digest()
 
 
 def print_group_tree(group, level=0):
