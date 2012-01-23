@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import kdbdatabase
+import pykeepassx
 import cmd
 import getpass
 import os
@@ -80,7 +80,7 @@ class KDBDatabaseCli(cmd.Cmd):
         if self.is_open():
             self.do_close()
 
-        db = kdbdatabase.Database(filename)
+        db = pykeepassx.Database(filename)
 
         if db.is_locked():
             open_anyway = self._input_yes_no("Database is already open. Open anyway?", False)
@@ -96,7 +96,7 @@ class KDBDatabaseCli(cmd.Cmd):
             db.decrypt(pw)
             db.parse_body()
             self.db = db
-        except kdbdatabase.DatabaseException as e:
+        except pykeepassx.DatabaseException as e:
             print e.message
             return
 
