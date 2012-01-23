@@ -1,6 +1,5 @@
 import uuid
 import struct
-import getpass
 import datetime
 import os
 
@@ -420,18 +419,18 @@ class Database(object):
 
     def _serialize(self, password):
         # Update header
-        self._header.num_groups = len(db._body._groups)
-        self._header.num_entries = len(db._body._entries)
+        self._header.num_groups = len(self._body._groups)
+        self._header.num_entries = len(self._body._entries)
         self._header.final_random_seed = crypto.randomize(16)
         self._header.encryption_iv = crypto.randomize(16)
 
         # Generate body
         body = str()
 
-        for g in db._body._groups:
+        for g in self._body._groups:
             body += g.to_bytearray()
 
-        for e in db._body._entries:
+        for e in self._body._entries:
             body += e.to_bytearray()
 
         # Calculate hash from the body
@@ -510,19 +509,3 @@ def to_datetime(data):
     s = dw5 & 0x0000003F
 
     return datetime.datetime(year=y, month=mon, day=d, hour=h, minute=m, second=s)
-
-
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) > 1:
-        filename = sys.argv[1]
-    else:
-        filename = raw_input("Filename: ")
-
-    db = Database(filename)
-    pw = getpass.getpass("Password: ")
-    db.open(pw)
-
-    for rg in db.get_root_group().children:
-        utils.print_group_tree(rg)
