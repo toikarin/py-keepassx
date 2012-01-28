@@ -9,7 +9,7 @@ import datetime
 import threading
 import time
 
-HIST_FILE = os.path.expanduser("~/.py-kdb.history")
+HIST_FILE = os.path.expanduser("~/.py-keepassx.history")
 IDLE_TIME_MINUTES = 2
 
 
@@ -26,7 +26,7 @@ class KDBDatabaseCli(cmd.Cmd):
         if filename:
             self.do_open(filename)
 
-        self.prompt = "[Kdb]: "
+        self.prompt = "[py-keepassx]: "
 
     def emptyline(self):
         # Prevent default behaviour and do not rerun last command
