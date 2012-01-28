@@ -5,6 +5,7 @@ import os
 
 import utils
 import crypto
+import groupid
 
 
 class DatabaseException(Exception):
@@ -100,21 +101,42 @@ class Entry(object):
     FIELD_TYPE_BINARY = 0x000E
     FIELD_TYPE_END = 0xFFFF
 
-    def __init__(self):
-        self.uuid = None
-        self.group_id = None
-        self.image = None
-        self.title = None
-        self.url = None
-        self.username = None
-        self.password = None
-        self.comment = None
-        self.creation = None
-        self.last_mod = None
-        self.last_access = None
-        self.expire = None
-        self.binary_desc = None
-        self.binary = None
+    def __init__(self, uuid=None, group_id=None, image=None, title=None, url=None,
+            username=None, password=None, comment=None, creation=None, last_mod=None,
+            last_access=None, expire=None, binary_desc=None, binary=None, parent=None):
+        self.uuid = uuid
+        self.group_id = group_id
+        self.image = image
+        self.title = title
+        self.url = url
+        self.username = username
+        self.password = password
+        self.comment = comment
+        self.creation = creation
+        self.last_mod = last_mod
+        self.last_access = last_access
+        self.expire = expire
+        self.binary_desc = binary_desc
+        self.binary = binary
+
+        self._parent = parent
+
+    def dump(self):
+        s = ("[Entry: {0.uuid}: [title: '{0.title}', group_id: {0.group_id}, image: {0.image}, "
+             "username: '{0.username}' url: '{0.url}', comment: '{0.comment}', password: {password}, "
+             "creation: {0.creation}, last_access: {0.last_access}, last_mod: {0.last_mod}, "
+             "expire: {0.expire}, binary_desc: '{0.binary_desc}'.")
+
+        return s.format(self, password="*****" if self.password else '')
+
+    def is_valid(self):
+        return (self.uuid
+            and self.group_id
+            and self.image is not None
+            and self.title
+            and self.creation
+            and self.last_mod
+            and self.last_access)
 
     def is_meta_stream(self):
         if not self.binary:
@@ -132,6 +154,24 @@ class Entry(object):
         if self.image:
             return False
         return True
+
+    def accessed(self):
+        self.last_access = utils.now()
+
+    def updated(self):
+        self.last_mod = utils.now()
+
+    def expired(self):
+        if self.expire:
+            return utils.now() >= self.expire
+
+        return False
+
+    def remove(self):
+        if not self._parent:
+            return
+
+        self._parent.remove_entry(self)
 
     def to_bytearray(self):
         data = (
@@ -180,22 +220,178 @@ class Group(object):
     FIELD_TYPE_FLAGS = 0x0009
     FIELD_TYPE_END = 0xFFFF
 
-    def __init__(self):
-        self.id = None
-        self.title = None
-        self.creation = None
-        self.last_mod = None
-        self.last_access = None
-        self.expire = None
-        self.image = None
-        self.level = None
-        self.children = list()
-        self.entries = list()
+    def __init__(self, group_id=None, title=None, creation=None, last_mod=None,
+                 last_access=None, expire=None, image=None, level=None, parent=None):
+        self.group_id = group_id
+        self.title = title
+        self.image = image
+        self.level = level
+
+        self.creation = None  # unused
+        self.last_mod = None  # unused
+        self.last_access = None  # unused
+        self.expire = None  # unused
         self.flags = 0  # unused
+
+        self._children = list()
+        self._entries = list()
+        self._parent = parent
+
+    def dump(self):
+        s = "[Group: {0.group_id}: [title: '{0.title}', image: {0.image}, level: {0.level}]"
+        return s.format(self)
+
+    def is_valid(self):
+        return (self.title
+            and self.group_id
+            and self.image is not None
+            and self.level is not None)
+
+    def add_group(self, title):
+        """
+        Creates a new group and adds it to this group.
+
+        `title` is the title for the new group. It can't be None or empty string.
+
+        Returns the created group.
+        """
+
+        if not title:
+            raise ValueError("title is not set.")
+
+        now = utils.now()
+
+        initargs = {
+            'group_id': groupid.generate(),
+            'title': title,
+            'creation': now,
+            'last_mod': now,
+            'last_access': now,
+            'image': 1,
+            'level': self.level + 1,
+            'parent': self,
+        }
+
+        group = Group(**initargs)
+        self._children.append(group)
+        return group
+
+    def get_groups(self):
+        """
+        Returns the list of groups this group currently has.
+        """
+        return self._children[:]
+
+    def remove_group(self, group):
+        """
+        Remove `group` from this group. It is an error if group doesn't belong to this gorup.
+        """
+        self._children.remove(group)
+
+    def add_entry(self, title, **kwargs):
+        """
+        Add an new entry to this group.
+
+        `title` is the title for the new entry. It can't be None or empty string.
+        `kwargs` can contain following keys:
+        url -- Optional URL for the new entry
+        username -- Username for the new entry
+        password -- Password for the new entry
+        comment -- Comment string for the new entry
+        expire -- datetime when the entry/password is going to be expire
+
+        Returns the created entry.
+        """
+
+        if not title:
+            raise ValueError("Title can't be empty.")
+
+        allowed_keys = ("url", "username", "password", "comment", "expire",)
+
+        if set(kwargs.keys()) - set(allowed_keys):
+            raise ValueError("Unallowed keys in kwargs.")
+
+        now = utils.now()
+
+        initargs = {
+            'title': title,
+            'uuid': uuid.uuid1(),
+            'parent': self,
+            'group_id': self.group_id,
+            'image': 1,
+            'title': title,
+            'creation': now,
+            'last_mod': now,
+            'last_access': now,
+        }
+
+        initargs.update(kwargs)
+
+        entry = Entry(**initargs)
+        self._entries.append(entry)
+        return entry
+
+    def get_entries(self):
+        """
+        Returns the list of entries this group currently has.
+        """
+        return self._entries[:]
+
+    def remove_entry(self, entry):
+        """
+        Remove `entry` from this group. It is an error if entry doesn't belong to this gorup.
+        """
+        self._entries.remove(entry)
+
+    def remove(self):
+        """
+        Remove this group.
+
+        If this group is already removed, nothing happens.
+        """
+        if not self._parent:
+            return
+
+        self._parent.remove_group(self)
+        self._parent = None
+
+    def move_entry(self, entry):
+        """
+        Move `entry` to this group.
+        """
+        if entry._parent:
+            if entry._parent == self:
+                raise ValueError("Entry is already in this group.")
+            entry._parent.remove_entry(entry)
+
+        entry._parent = self
+        self._entries.append(entry)
+
+    def move_group(self, group):
+        """
+        Move `group` to this group.
+        """
+        if group == self:
+            raise ValueError("Group == self.")
+
+        if group._parent:
+            if group._parent == self:
+                raise ValueError("Group is already in this group.")
+            group._parent.remove_group(group)
+
+        group._parent = self
+        _adjust_level(group, self.level + 1)
+        self._children.append(group)
+
+    def is_root(self):
+        """
+        Is this a root group?
+        """
+        return False
 
     def to_bytearray(self):
         data = (
-            Group.FIELD_TYPE_ID, 4, self.id,
+            Group.FIELD_TYPE_ID, 4, self.group_id,
             Group.FIELD_TYPE_TITLE, xstr(self.title),
             Group.FIELD_TYPE_CREATION, 5, from_datetime(self.creation),
             Group.FIELD_TYPE_LAST_MOD, 5, from_datetime(self.last_mod),
@@ -214,42 +410,89 @@ class Group(object):
         return struct.pack(pack_fmt, *utils.flatten(data))
 
 
-class Body(object):
-    def __init__(self, unencrypted_data, num_groups, num_entries):
-        self._data = unencrypted_data
-        self._num_groups = num_groups
-        self._num_entries = num_entries
+class RootGroup(Group):
+    def __init__(self):
 
-        self._groups = list()
-        self._entries = list()
+        initargs = {
+            'level': -1,  # -1 so rootgroup.level + 1 == 0 which is the smallest level
+        }
 
-        self.root = Group()
-        self.meta_entries = list()
+        super(RootGroup, self).__init__(**initargs)
 
-    def parse(self):
-        self._groups, pos = self._generic_parse(Group, self._num_groups, 0, self._read_group_field)
-        self._entries, pos = self._generic_parse(Entry, self._num_entries, pos, self._read_entry_field)
+    def add_entry(self, title, **kwargs):
+        raise ValueError("Root group can't contain any entries.")
+
+    def get_entries(self):
+        raise ValueError("Root group can't contain any entries.")
+
+    def remove_entry(self, entry):
+        raise ValueError("Root group can't contain any entries.")
+
+    def move_entry(self, entry):
+        raise ValueError("Root group can't contain any entries.")
+
+    def remove(self):
+        raise ValueError("Root group can't be removed.")
+
+    def is_root(self):
+        return True
+
+    def get_groups_and_entries(self):
+        entries = list()
+        groups = list()
+
+        for g in self.get_groups():
+            groups.append(g)
+            self._get_groups_and_entries(g, groups, entries)
+
+        return groups, entries
+
+    def _get_groups_and_entries(self, group, groups, entries):
+        entries.extend(group.get_entries())
+
+        for g in group.get_groups():
+            groups.append(g)
+            self._get_groups_and_entries(g, groups, entries)
+
+    def parse(self, data, num_groups, num_entries):
+        groups, pos = self._generic_parse(data, Group, num_groups, 0, self._read_group_field)
+        entries, _ = self._generic_parse(data, Entry, num_entries, pos, self._read_entry_field)
 
         # Separate entries and meta entries
-        entries, self.meta_entries = utils.partition(lambda x: not x.is_meta_stream(), self._entries)
+        entries, meta_entries = utils.partition(lambda x: not x.is_meta_stream(), entries)
 
-        self._create_group_tree(self._groups)
-        self._map_entries_to_groups(self._groups, entries)
-
-    def _map_entries_to_groups(self, groups, entries):
-        gdict = dict()
         for g in groups:
-            gdict[g.id] = g
+            if not g.is_valid():
+                raise DatabaseException("Invalid group {0}.".format(g.dump()))
 
         for e in entries:
-            gdict[e.group_id].entries.append(e)
+            if not e.is_valid():
+                raise DatabaseException("Invalid entry {0}.".format(e.dump()))
+
+        self._create_group_tree(groups)
+        self._map_entries_to_groups(groups, entries)
+
+        return self
+
+    def _map_entries_to_groups(self, groups, entries):
+        def get_group(groups, group_id):
+            for g in groups:
+                if g.group_id == group_id:
+                    return g
+
+        for e in entries:
+            g = get_group(groups, e.group_id)
+            if not g:
+                raise DatabaseException("Unable to find group by id {0}".format(e.group_id))
+
+            g.move_entry(e)
 
     def _create_group_tree(self, groups):
         num_groups = len(groups)
 
         for i in range(num_groups):
             if groups[i].level == 0:
-                self.root.children.append(groups[i])
+                self.move_group(groups[i])
             else:
                 parent = None
                 for j in reversed(range(i)):
@@ -260,18 +503,19 @@ class Body(object):
                 if not parent:
                     raise "!"
 
-                parent.children.append(groups[i])
+                parent.move_group(groups[i])
 
-    def _generic_parse(self, cls, num_entries, pos, func):
+    def _generic_parse(self, data, cls, num_entries, pos, func):
         cur_entry = 0
         cur_obj = cls()
         entries = list()
+        data_len = len(data)
 
         while cur_entry < num_entries:
-            field_type, field_size = struct.unpack_from("<HI", self._data[pos:])
+            field_type, field_size = struct.unpack_from("<HI", data[pos:])
             pos += 6
 
-            retval = func(cur_obj, field_type, self._data[pos:pos + field_size])
+            retval = func(cur_obj, field_type, data[pos:pos + field_size])
 
             if field_type == 0xFFFF and retval:
                 entries.append(cur_obj)
@@ -326,7 +570,7 @@ class Body(object):
             # ignore field
             pass
         elif field_type == Group.FIELD_TYPE_ID:
-            obj.id = struct.unpack_from('<I', field_data)[0]
+            obj.group_id = struct.unpack_from('<I', field_data)[0]
         elif field_type == Group.FIELD_TYPE_TITLE:
             obj.title = str(field_data)[:-1]
         elif Group.FIELD_TYPE_CREATION >= field_type <= Group.FIELD_TYPE_EXPIRE:
@@ -387,7 +631,6 @@ class Database(object):
         if len(self._data) < Header.DB_HEADER_SIZE:
             raise DatabaseException("Unexpected file size (DB_TOTAL_SIZE < DB_HEADER_SIZE)")
 
-
     def parse_header(self):
         self._header = Header(self._data[:Header.DB_HEADER_SIZE])
 
@@ -410,26 +653,27 @@ class Database(object):
             raise DatabaseException("Hash test failed. The key is wrong or the file is damaged.")
 
     def parse_body(self):
-        self._body = Body(self._unencrypted_data, self._header.num_groups, self._header.num_entries)
-        self._body.parse()
+        self._root = RootGroup().parse(self._unencrypted_data, self._header.num_groups, self._header.num_entries)
 
     def get_root_group(self):
-        return self._body.root
+        return self._root
 
     def _serialize(self, password):
+        groups, entries = self._root.do_lists()
+
         # Update header
-        self._header.num_groups = len(self._body._groups)
-        self._header.num_entries = len(self._body._entries)
+        self._header.num_groups = len(groups)
+        self._header.num_entries = len(entries)
         self._header.final_random_seed = crypto.randomize(16)
         self._header.encryption_iv = crypto.randomize(16)
 
         # Generate body
         body = str()
 
-        for g in self._body._groups:
+        for g in groups:
             body += g.to_bytearray()
 
-        for e in self._body._entries:
+        for e in entries:
             body += e.to_bytearray()
 
         # Calculate hash from the body
@@ -508,3 +752,10 @@ def to_datetime(data):
     s = dw5 & 0x0000003F
 
     return datetime.datetime(year=y, month=mon, day=d, hour=h, minute=m, second=s)
+
+
+def _adjust_level(group, level):
+    group.level = level
+
+    for subgroup in group._children:
+        _adjust_level(subgroup, level + 1)

@@ -1,4 +1,14 @@
 import collections
+import datetime
+import uuid
+
+
+def now():
+    return datetime.datetime.now().replace(microsecond=0)
+
+
+def generate_uuid():
+    return uuid.uuid4()
 
 
 def partition(pred, iterables):
@@ -24,11 +34,3 @@ def flatten(l):
                 yield ce
         else:
             yield e
-
-
-def print_group_tree(group, level=0):
-    print("{indent}***[{title}]***".format(indent=" " * level, title=group.title))
-    for e in group.entries:
-        print("{indent}-{title}".format(indent=" " * (level + 2), title=e.title))
-    for g in group.children:
-        print_group_tree(g, level + 4)

@@ -150,7 +150,7 @@ class KDBDatabaseCli(cmd.Cmd):
 
         entries = list()
 
-        for e in self.cur_group.entries:
+        for e in self.cur_group.get_entries():
             if e.title and e.title.startswith(text):
                 entries.append(e.title)
 
@@ -202,10 +202,11 @@ class KDBDatabaseCli(cmd.Cmd):
             print("ls: No database currently opened")
             return
 
-        for g in self.cur_group.children:
+        for g in self.cur_group.get_groups():
             print("+ {title}".format(title=g.title))
-        for e in sorted(self.cur_group.entries, key=lambda x: x.title.lower() if x else x):
-            print("x {title}".format(title=e.title))
+        if not self.cur_group.is_root():
+            for e in sorted(self.cur_group.get_entries(), key=lambda x: x.title.lower() if x else x):
+                print("x {title}".format(title=e.title))
 
     def help_clear(self, _):
         print("Clear the screen.")
@@ -230,7 +231,7 @@ class KDBDatabaseCli(cmd.Cmd):
         if not self.cur_group:
             return
 
-        for g in self.cur_group.children:
+        for g in self.cur_group.get_groups():
             if g.title and g.title.startswith(text):
                 group_names.append(g.title)
 
@@ -249,7 +250,7 @@ class KDBDatabaseCli(cmd.Cmd):
             except IndexError:
                 new_group = self.cur_group
         else:
-            for g in self.cur_group.children:
+            for g in self.cur_group.get_groups():
                 if g.title == path:
                     new_group = g
                     break
