@@ -23,6 +23,10 @@ class KDBDatabaseCli(cmd.Cmd):
 
         self.prompt = "[Kdb]: "
 
+    def emptyline(self):
+        # Prevent default behaviour and do not rerun last command
+        pass
+
     def help_help(self):
         print("Show help")
 
