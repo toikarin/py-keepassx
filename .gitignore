@@ -1,3 +1,5 @@
 dist
 MANIFEST
 py_keepassx.egg-info
+.coverage
+cover
