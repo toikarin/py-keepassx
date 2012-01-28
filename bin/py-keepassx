@@ -5,14 +5,19 @@ import cmd
 import getpass
 import os
 import functools
+import datetime
+import threading
+import time
 
 HIST_FILE = os.path.expanduser("~/.py-kdb.history")
+IDLE_TIME_MINUTES = 2
 
 
 class KDBDatabaseCli(cmd.Cmd):
     def __init__(self, filename=None):
         self.cd_stack = list()
         self.cur_group = None
+        self.idle_check_thread = None
 
         cmd.Cmd.__init__(self)
 
@@ -26,6 +31,12 @@ class KDBDatabaseCli(cmd.Cmd):
     def emptyline(self):
         # Prevent default behaviour and do not rerun last command
         pass
+
+    def postcmd(self, stop, line):
+        if self.idle_check_thread:
+            self.idle_check_thread.last_activity = datetime.datetime.now()
+
+        return stop
 
     def help_help(self):
         print("Show help")
@@ -105,8 +116,15 @@ class KDBDatabaseCli(cmd.Cmd):
             return
 
         self.cur_group = self.db.get_root_group()
+        self.idle_check_thread = IdleCheckThread(self._timeout_close)
+        self.idle_check_thread.start()
 
         print("Opened.")
+
+    def _timeout_close(self):
+        self.do_clear()
+        print("Database closed (timeout).")
+        self._close()
 
     def help_close(self):
         print("Close the currently open database.")
@@ -190,7 +208,7 @@ class KDBDatabaseCli(cmd.Cmd):
     def help_clear(self, _):
         print("Clear the screen.")
 
-    def do_clear(self, _):
+    def do_clear(self, _=None):
         cmds = {
             'nt': functools.partial(os.system, 'cls'),
             'posix': functools.partial(os.system, 'clear'),
@@ -241,7 +259,7 @@ class KDBDatabaseCli(cmd.Cmd):
         else:
             print("cd: No such group")
 
-    def do_quit(self, _):
+    def do_quit(self, _=None):
         print("Bye.")
         self._close()
         return True
@@ -250,11 +268,14 @@ class KDBDatabaseCli(cmd.Cmd):
         return self.db is not None
 
     def _get_entry(self, entry_name):
-        for e in self.cur_group.entries:
+        for e in self.cur_group.get_entries():
             if e.title == entry_name:
                 return e
 
     def _close(self):
+        if self.idle_check_thread:
+            self.idle_check_thread.stop()
+
         if self.db:
             self.db.unlock()
 
@@ -294,6 +315,29 @@ class KDBDatabaseCli(cmd.Cmd):
                 return choices[choice]
             except KeyError:
                 pass
+
+
+class IdleCheckThread(threading.Thread):
+    def __init__(self, callback):
+        self.last_activity = None
+        self.keep_running = True
+        self.callback = callback
+
+        threading.Thread.__init__(self)
+
+    def stop(self):
+        self.keep_running = False
+
+    def run(self):
+
+        while self.keep_running:
+            time.sleep(0.1)
+
+            allowed_idle_time = datetime.timedelta(minutes=IDLE_TIME_MINUTES)
+
+            if self.last_activity and datetime.datetime.now() - self.last_activity > allowed_idle_time:
+                self.keep_running = False
+                self.callback()
 
 
 if __name__ == '__main__':
