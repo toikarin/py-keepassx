@@ -387,7 +387,6 @@ class Database(object):
         if len(self._data) < Header.DB_HEADER_SIZE:
             raise DatabaseException("Unexpected file size (DB_TOTAL_SIZE < DB_HEADER_SIZE)")
 
-        self.lock()
 
     def parse_header(self):
         self._header = Header(self._data[:Header.DB_HEADER_SIZE])

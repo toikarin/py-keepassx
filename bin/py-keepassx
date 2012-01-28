@@ -104,6 +104,7 @@ class KDBDatabaseCli(cmd.Cmd):
                 return
 
         try:
+            db.lock()
             db.read_file()
             db.parse_header()
 
@@ -113,6 +114,7 @@ class KDBDatabaseCli(cmd.Cmd):
             self.db = db
         except pykeepassx.DatabaseException as e:
             print e.message
+            db.unlock()
             return
 
         self.cur_group = self.db.get_root_group()
