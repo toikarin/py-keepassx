@@ -113,7 +113,7 @@ class KDBDatabaseCli(cmd.Cmd):
             db.parse_body()
             self.db = db
         except pykeepassx.DatabaseException as e:
-            print e.message
+            print(e)
             db.unlock()
             return
 
