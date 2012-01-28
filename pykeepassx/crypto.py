@@ -1,11 +1,16 @@
 import hashlib
 from Crypto.Cipher import AES
-from Crypto import Random
+import Crypto.Random
+import Crypto.Util.number
 import struct
 
 
 def randomize(length):
-    return Random.get_random_bytes(length)
+    return Crypto.Random.get_random_bytes(length)
+
+
+def randomize_int(length):
+    return Crypto.Util.number.getRandomInteger(length * 8)
 
 
 def sha256(lst):
