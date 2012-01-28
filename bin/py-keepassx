@@ -261,6 +261,9 @@ class KDBDatabaseCli(cmd.Cmd):
         else:
             print("cd: No such group")
 
+    def do_EOF(self, _):
+        return self.do_quit()
+
     def do_quit(self, _=None):
         print("Bye.")
         self._close()
