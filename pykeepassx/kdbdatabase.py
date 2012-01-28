@@ -501,7 +501,7 @@ class RootGroup(Group):
                         break
 
                 if not parent:
-                    raise "!"
+                    raise DatabaseException("Unable to find parent for group {0}".format(groups[i].group_id))
 
                 parent.move_group(groups[i])
 
@@ -512,8 +512,14 @@ class RootGroup(Group):
         data_len = len(data)
 
         while cur_entry < num_entries:
+            if pos + 6 > data_len:
+                raise DatabaseException("EOF")
+
             field_type, field_size = struct.unpack_from("<HI", data[pos:])
             pos += 6
+
+            if pos + field_size > data_len:
+                raise DatabaseException("EOF")
 
             retval = func(cur_obj, field_type, data[pos:pos + field_size])
 
