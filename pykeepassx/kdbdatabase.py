@@ -331,11 +331,20 @@ class Group(object):
         self._entries.append(entry)
         return entry
 
-    def get_entries(self):
+    def get_entries(self, include_meta_entries=False):
         """
         Returns the list of entries this group currently has.
         """
-        return self._entries[:]
+        if include_meta_entries:
+            return self._entries[:]
+        else:
+            return filter(lambda x: not x.is_meta_stream(), self._entries)
+
+    def get_meta_entries(self):
+        """
+        Returns the list of meta entries this group currently has.
+        """
+        return filter(lambda x: x.is_meta_stream(), self._entries)
 
     def remove_entry(self, entry):
         """
@@ -448,7 +457,7 @@ class RootGroup(Group):
         return groups, entries
 
     def _get_groups_and_entries(self, group, groups, entries):
-        entries.extend(group.get_entries())
+        entries.extend(group.get_entries(include_meta_entries=True))
 
         for g in group.get_groups():
             groups.append(g)
@@ -457,9 +466,6 @@ class RootGroup(Group):
     def parse(self, data, num_groups, num_entries):
         groups, pos = self._generic_parse(data, Group, num_groups, 0, self._read_group_field)
         entries, _ = self._generic_parse(data, Entry, num_entries, pos, self._read_entry_field)
-
-        # Separate entries and meta entries
-        entries, meta_entries = utils.partition(lambda x: not x.is_meta_stream(), entries)
 
         for g in groups:
             if not g.is_valid():

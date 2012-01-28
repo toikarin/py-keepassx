@@ -78,8 +78,8 @@ def test_parse_metaentry():
     e = helpers.create_metaentry(g)
     root = RootGroup().parse(g.to_bytearray() + e.to_bytearray(), 1, 1)
 
-    entries = root.get_groups()[0].get_entries()
-    assert(len(entries) == 1)
+    entries = root.get_groups()[0].get_meta_entries()
+    assert len(entries) == 1
     helpers.equal_entries(e, entries[0])
 
 
