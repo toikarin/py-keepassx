@@ -1,6 +1,7 @@
 import collections
 import datetime
 import uuid
+import crypto
 
 
 def now():
@@ -34,3 +35,39 @@ def flatten(l):
                 yield ce
         else:
             yield e
+
+
+def generate_password(length, lowercase=True, uppercase=True, numeric=True, special=True, whitespace=True, dash=True,
+        underscore=True):
+    chars = list()
+
+    if lowercase:
+        chars.extend(xrange(65, 90 + 1))
+
+    if uppercase:
+        chars.extend(xrange(97, 122 + 1))
+
+    if numeric:
+        chars.extend(xrange(48, 57 + 1))
+
+    if special:
+        chars.extend(xrange(33, 47 + 1))
+        chars.extend(xrange(58, 64 + 1))
+        chars.extend(xrange(91, 96 + 1))
+        chars.extend(xrange(123, 126 + 1))
+
+    if whitespace:
+        chars.append(32)
+
+    if dash:
+        chars.append(45)
+
+    if underscore:
+        chars.append(95)
+
+    password = ""
+
+    for i in range(length):
+        password += chr(chars[crypto.randomize_int(4, len(chars))])
+
+    return password

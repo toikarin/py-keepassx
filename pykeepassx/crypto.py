@@ -9,8 +9,9 @@ def randomize(length):
     return Crypto.Random.get_random_bytes(length)
 
 
-def randomize_int(length):
-    return Crypto.Util.number.getRandomInteger(length * 8)
+def randomize_int(length, maximum=None):
+    i = Crypto.Util.number.getRandomInteger(length * 8)
+    return i if not maximum else i % maximum
 
 
 def sha256(lst):

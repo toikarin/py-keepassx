@@ -125,6 +125,26 @@ class KDBDatabaseCli(cmd.Cmd):
         print("Database closed (timeout).")
         self._close()
 
+    def help_generate(self):
+        print("Generate new password.")
+
+    def do_generate(self, length):
+        if not length:
+            length = 25
+        else:
+            try:
+                length = int(length)
+            except ValueError:
+                print("Usage: generate [length].")
+                return
+
+            if length < 3:
+                print("Usage: generate [length].")
+                return
+
+        pw = pykeepassx.generate_password(length)
+        print("Generated password = '{0}'".format(pw))
+
     def help_close(self):
         print("Close the currently open database.")
 
