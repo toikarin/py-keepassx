@@ -656,7 +656,7 @@ class Database(object):
         else:
             raise DatabaseException("Unknown encryption algorithm.")
 
-        if crypto_size > 214783446 or (not crypto_size and self.num_groups):
+        if crypto_size > 214783446 or (not crypto_size and self._header.num_groups):
             raise DatabaseException("Decryption failed. The key is wrong or the file is damaged.")
 
         contents_hash = crypto.sha256(self._unencrypted_data[:crypto_size])
