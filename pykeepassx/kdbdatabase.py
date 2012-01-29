@@ -189,7 +189,7 @@ class Entry(object):
             Entry.FIELD_TYPE_EXPIRE, 5, from_datetime(self.expire),
             Entry.FIELD_TYPE_BINARY_DESC, xstr(self.binary_desc),
             Entry.FIELD_TYPE_BINARY, xstr(self.binary, True),
-            Entry.FIELD_TYPE_END, 0
+            Entry.FIELD_TYPE_END, 0,
         )
 
         pack_fmt = '<HI16c HII HII HI{title_len}B HI{url_len}B HI{username_len}B HI{password_len}B'
@@ -409,7 +409,7 @@ class Group(object):
             Group.FIELD_TYPE_IMAGE, 4, self.image,
             Group.FIELD_TYPE_LEVEL, 2, self.level,
             Group.FIELD_TYPE_FLAGS, 4, self.flags,
-            Group.FIELD_TYPE_END, 0
+            Group.FIELD_TYPE_END, 0,
         )
 
         pack_fmt = '<HII HI{title_len}B HI5B HI5B HI5B HI5B HII HIH HII HI'.format(

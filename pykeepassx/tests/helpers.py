@@ -59,7 +59,7 @@ def create_header():
     return h
 
 
-def create_group(level = 0):
+def create_group(level=0):
     g = Group()
     g.group_id = crypto.randomize_int(4)
     g.title = "test"

@@ -40,6 +40,7 @@ def key_transform(key, rounds, data):
 
     return data
 
+
 def transform(src, key, rounds):
     kt_left = key_transform(key, rounds, src[:16])
     kt_right = key_transform(key, rounds, src[16:])
@@ -62,7 +63,7 @@ def add_padding(s):
     data = bytearray(s)
 
     for i in range(pad_len):
-        # Pad lenght is read from the last byte, use pad length as the pad 
+        # Pad lenght is read from the last byte, use pad length as the pad
         data.append(pad_len)
 
     return str(data)

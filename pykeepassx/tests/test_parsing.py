@@ -53,7 +53,7 @@ def test_parse_group():
     g = helpers.create_group()
     root = RootGroup().parse(g.to_bytearray(), 1, 0)
 
-    groups  = root.get_groups()
+    groups = root.get_groups()
     assert len(groups) == 1
     helpers.equal_groups(g, groups[0])
 
@@ -63,7 +63,7 @@ def test_parse_entry():
     e = helpers.create_entry(g)
     root = RootGroup().parse(g.to_bytearray() + e.to_bytearray(), 1, 1)
 
-    groups  = root.get_groups()
+    groups = root.get_groups()
     assert len(groups) == 1
     g2 = groups[0]
     helpers.equal_groups(g, g2)
