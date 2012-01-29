@@ -1,4 +1,4 @@
 from kdbdatabase import (
-    Database,
+    FileDatabase,
     DatabaseException,
 )

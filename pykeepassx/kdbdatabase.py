@@ -604,11 +604,111 @@ class RootGroup(Group):
 
 
 class Database(object):
-    def __init__(self, filename):
-        self._data = None
+    def __init__(self):
         self._header = None
-        self._unencrypted_data = None
+        self._root = RootGroup()
+
+    def get_root_group(self):
+        return self._root
+
+    def read(self, data, password):
+        self._header = self._parse_header(data)
+        decrypted_data = self._decrypt(self._header, data, password)
+        self._root = self._parse_body(self._header, decrypted_data)
+        return self._root
+
+    def serialize(self, password):
+        if not self._header:
+            self._header = Header()
+            self._header.transf_random_seed = crypto.randomize(32)
+            self._header.key_transf_rounds = 50000
+
+        return self._serialize_data(self._root, self._header, password)
+
+    @staticmethod
+    def _serialize_data(root, header, password):
+        groups, entries = root.get_groups_and_entries()
+
+        # Update header
+        header.num_groups = len(groups)
+        header.num_entries = len(entries)
+        header.final_random_seed = crypto.randomize(16)
+        header.encryption_iv = crypto.randomize(16)
+
+        # Generate body
+        body = str()
+
+        for g in groups:
+            body += g.to_bytearray()
+
+        for e in entries:
+            body += e.to_bytearray()
+
+        # Calculate hash from the body
+        header.contents_hash = crypto.sha256(body)
+
+        # Encrypt body
+        encrypted = crypto.encrypt(body, Database._generate_key(header, password), header.encryption_iv)
+
+        # Generate file content
+        data = str()
+        data += header.to_bytearray()
+        data += encrypted
+
+        return data
+
+    @staticmethod
+    def _parse_header(data):
+        if len(data) < Header.DB_HEADER_SIZE:
+            raise DatabaseException("Unexpected file size (DB_TOTAL_SIZE < DB_HEADER_SIZE)")
+
+        return Header(data[:Header.DB_HEADER_SIZE])
+
+    @staticmethod
+    def _decrypt(header, data, password):
+        final_key = Database._generate_key(header, password)
+
+        if (header.cipher == Header.RIJNDAEL_CIPHER):
+            decrypted_data = crypto.decrypt_aes(final_key, header.encryption_iv, data[Header.DB_HEADER_SIZE:])
+
+            crypto_size = len(decrypted_data)
+        else:
+            raise DatabaseException("Unknown encryption algorithm.")
+
+        if crypto_size > 214783446 or (not crypto_size and header.num_groups):
+            raise DatabaseException("Decryption failed. The key is wrong or the file is damaged.")
+
+        contents_hash = crypto.sha256(decrypted_data[:crypto_size])
+
+        if header.contents_hash != contents_hash:
+            raise DatabaseException("Hash test failed. The key is wrong or the file is damaged.")
+
+        return decrypted_data
+
+    @staticmethod
+    def _parse_body(header, decrypted_data):
+        return RootGroup().parse(decrypted_data, header.num_groups, header.num_entries)
+
+    @staticmethod
+    def _generate_key(header, password):
+        raw_master_key = Database._get_master_key(password)
+        master_key = crypto.transform(raw_master_key, header.transf_random_seed, header.key_transf_rounds)
+        return crypto.sha256([header.final_random_seed, master_key])
+
+    @staticmethod
+    def _get_master_key(pw):
+        pw_cp1252 = pw.decode("cp1252")
+        return crypto.sha256(pw_cp1252)
+
+
+class FileDatabase(Database):
+    def __init__(self, filename):
+        if not filename:
+            raise ValueError("filename can't be empty or None.")
+
         self._filename = filename
+
+        super(FileDatabase, self).__init__()
 
     def is_locked(self):
         return os.path.exists(self._get_lockfile())
@@ -621,94 +721,41 @@ class Database(object):
             pass
 
     def unlock(self):
+        if not self.is_locked():
+            return
+
         try:
             os.unlink(self._get_lockfile())
-        except OSError:
-            pass
+        except OSError as e:
+            raise DatabaseException("Error occurred while unlocking.", e)
 
     def open(self, password):
-        self.read_file()
-        self.parse_header()
-        self.decrypt(password)
-        self.parse_body()
-        return self.get_root_group()
-
-    def read_file(self):
         try:
             with open(self._filename, "rb") as f:
-                self._data = f.read()
+                data = f.read()
         except IOError as e:
             raise DatabaseException(e)
 
-        if len(self._data) < Header.DB_HEADER_SIZE:
-            raise DatabaseException("Unexpected file size (DB_TOTAL_SIZE < DB_HEADER_SIZE)")
+        return self.read(data, password)
 
-    def parse_header(self):
-        self._header = Header(self._data[:Header.DB_HEADER_SIZE])
+    def save(self, password):
+        data = self.serialize(password)
 
-    def decrypt(self, password):
-        final_key = self._generate_key(password)
+        if os.path.exists(self._filename):
+            tmp = self._filename + ".tmp"
+            backup = self._filename + ".bak"
 
-        if (self._header.cipher == Header.RIJNDAEL_CIPHER):
-            self._unencrypted_data = crypto.decrypt_aes(final_key, self._header.encryption_iv, self._data[Header.DB_HEADER_SIZE:])
+            with open(tmp, 'wb') as f:
+                f.write(data)
 
-            crypto_size = len(self._unencrypted_data)
+            os.rename(self._filename, backup)
+            os.rename(tmp, self._filename)
+
+            if False:  # FIXME
+                os.unlink(backup)
         else:
-            raise DatabaseException("Unknown encryption algorithm.")
-
-        if crypto_size > 214783446 or (not crypto_size and self._header.num_groups):
-            raise DatabaseException("Decryption failed. The key is wrong or the file is damaged.")
-
-        contents_hash = crypto.sha256(self._unencrypted_data[:crypto_size])
-
-        if self._header.contents_hash != contents_hash:
-            raise DatabaseException("Hash test failed. The key is wrong or the file is damaged.")
-
-    def parse_body(self):
-        self._root = RootGroup().parse(self._unencrypted_data, self._header.num_groups, self._header.num_entries)
-
-    def get_root_group(self):
-        return self._root
-
-    def _serialize(self, password):
-        groups, entries = self._root.do_lists()
-
-        # Update header
-        self._header.num_groups = len(groups)
-        self._header.num_entries = len(entries)
-        self._header.final_random_seed = crypto.randomize(16)
-        self._header.encryption_iv = crypto.randomize(16)
-
-        # Generate body
-        body = str()
-
-        for g in groups:
-            body += g.to_bytearray()
-
-        for e in entries:
-            body += e.to_bytearray()
-
-        # Calculate hash from the body
-        self._header.contents_hash = crypto.sha256(body)
-
-        # Encrypt body
-        encrypted = crypto.encrypt(body, self._generate_key(password), self._header.encryption_iv)
-
-        # Generate file content
-        data = str()
-        data += self._header.to_bytearray()
-        data += encrypted
-
-        return data
-
-    def _generate_key(self, password):
-        raw_master_key = self._get_master_key(password)
-        master_key = crypto.transform(raw_master_key, self._header.transf_random_seed, self._header.key_transf_rounds)
-        return crypto.sha256([self._header.final_random_seed, master_key])
-
-    def _get_master_key(self, pw):
-        pw_cp1252 = pw.decode("cp1252")
-        return crypto.sha256(pw_cp1252)
+            with open(self._filename, 'wb') as f:
+                f.write(data)
 
     def _get_lockfile(self):
         return "{0}.lock".format(self._filename)

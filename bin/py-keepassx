@@ -95,7 +95,7 @@ class KDBDatabaseCli(cmd.Cmd):
         if self.is_open():
             self.do_close()
 
-        db = pykeepassx.Database(filename)
+        db = pykeepassx.FileDatabase(filename)
 
         if db.is_locked():
             open_anyway = self._input_yes_no("Database is already open. Open anyway?", False)
@@ -105,18 +105,15 @@ class KDBDatabaseCli(cmd.Cmd):
 
         try:
             db.lock()
-            db.read_file()
-            db.parse_header()
 
             pw = getpass.getpass("Password: ")
-            db.decrypt(pw)
-            db.parse_body()
-            self.db = db
+            db.open(pw)
         except pykeepassx.DatabaseException as e:
             print(e)
             db.unlock()
             return
 
+        self.db = db
         self.cur_group = self.db.get_root_group()
         self.idle_check_thread = IdleCheckThread(self._timeout_close)
         self.idle_check_thread.start()
