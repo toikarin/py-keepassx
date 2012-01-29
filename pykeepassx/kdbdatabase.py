@@ -736,7 +736,7 @@ def xlen(x, is_binary=False):
 
 def from_datetime(d):
     if not d:
-        return _from_datetime(0, 0, 0, 0, 0, 0)
+        return _from_datetime(2999, 12, 28, 23, 59, 59)
     else:
         return _from_datetime(d.year, d.month, d.day, d.hour, d.minute, d.second)
 
@@ -762,6 +762,9 @@ def to_datetime(data):
     h = ((dw3 & 0x00000001) << 4) | (dw4 >> 4)
     m = ((dw4 & 0x0000000F) << 2) | (dw5 >> 6)
     s = dw5 & 0x0000003F
+
+    if y == 2999 and mon == 12 and d == 28 and h == 23 and m == 59 and s == 59:
+        return None
 
     return datetime.datetime(year=y, month=mon, day=d, hour=h, minute=m, second=s)
 
