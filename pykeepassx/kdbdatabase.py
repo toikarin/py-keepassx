@@ -701,38 +701,55 @@ class Database(object):
         return crypto.sha256(pw_cp1252)
 
 
-class FileDatabase(Database):
+class FSDatabase(Database):
     def __init__(self, filename):
         if not filename:
             raise ValueError("filename can't be empty or None.")
 
         self._filename = filename
 
-        super(FileDatabase, self).__init__()
+        super(FSDatabase, self).__init__()
+
+    def _read(self, filename):
+        raise NotImplementedError
+
+    def _write(self, filename, data):
+        raise NotImplementedError
+
+    def _exists(self, filename):
+        raise NotImplementedError
+
+    def _unlink(self, filename):
+        raise NotImplementedError
+
+    def _rename(self, filename, newfilename):
+        raise NotImplementedError
+
+    def _touch(self, filename):
+        raise NotImplementedError
 
     def is_locked(self):
-        return os.path.exists(self._get_lockfile())
+        return self._exists(self._get_lockfile())
 
     def lock(self):
+        pass
         if self.is_locked():
             return
 
-        with open(self._get_lockfile(), 'a'):
-            pass
+        self._touch(self._get_lockfile())
 
     def unlock(self):
         if not self.is_locked():
             return
 
         try:
-            os.unlink(self._get_lockfile())
-        except OSError as e:
+            self._unlink(self._get_lockfile())
+        except Exception as e:
             raise DatabaseException("Error occurred while unlocking.", e)
 
     def open(self, password):
         try:
-            with open(self._filename, "rb") as f:
-                data = f.read()
+            data = self._read(self._filename)
         except IOError as e:
             raise DatabaseException(e)
 
@@ -741,24 +758,72 @@ class FileDatabase(Database):
     def save(self, password):
         data = self.serialize(password)
 
-        if os.path.exists(self._filename):
+        if self._exists(self._filename):
             tmp = self._filename + ".tmp"
             backup = self._filename + ".bak"
 
-            with open(tmp, 'wb') as f:
-                f.write(data)
+            self._write(tmp, data)
 
-            os.rename(self._filename, backup)
-            os.rename(tmp, self._filename)
+            self._rename(self._filename, backup)
+            self._rename(tmp, self._filename)
 
             if False:  # FIXME
-                os.unlink(backup)
+                self._unlink(backup)
         else:
-            with open(self._filename, 'wb') as f:
-                f.write(data)
+            self._write(self._filename, data)
 
     def _get_lockfile(self):
         return "{0}.lock".format(self._filename)
+
+
+class FileDatabase(FSDatabase):
+    def __init__(self, filename):
+        super(FileDatabase, self).__init__(filename)
+
+    def _read(self, filename):
+        with open(filename, "rb") as f:
+            return f.read()
+
+    def _write(self, filename, data):
+        with open(filename, 'wb') as f:
+            f.write(data)
+
+    def _exists(self, filename):
+        return os.path.exists(filename)
+
+    def _unlink(self, filename):
+        os.unlink(filename)
+
+    def _rename(self, filename, newfilename):
+        os.rename(filename, newfilename)
+
+    def _touch(self, filename):
+        with open(filename, 'a'):
+            pass
+
+
+class SSHDatabase(FSDatabase):
+    def __init__(self, ssh, filename):
+        self.ssh = ssh
+        super(SSHDatabase, self).__init__(filename)
+
+    def _read(self, filename):
+        return self.ssh.read(filename)
+
+    def _write(self, filename, data):
+        self.ssh.write(filename, data)
+
+    def _exists(self, filename):
+        return self.ssh.exists(filename)
+
+    def _unlink(self, filename):
+        return self.ssh.remove(filename)
+
+    def _rename(self, filename, newfilename):
+        return self.ssh.rename(filename, newfilename)
+
+    def _touch(self, filename):
+        self.ssh.write(filename, '')
 
 
 def xstr(s, is_binary=False):

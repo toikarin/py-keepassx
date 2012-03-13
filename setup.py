@@ -16,6 +16,7 @@ setup(
         "bin/py-keepassx",
     ],
     install_requires=[
-        "pycrypto>=2.5"
+        "pycrypto>=2.5",
+        "paramiko>=1.7"
     ],
 )

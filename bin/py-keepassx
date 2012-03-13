@@ -95,7 +95,13 @@ class KDBDatabaseCli(cmd.Cmd):
         if self.is_open():
             self.do_close()
 
-        db = pykeepassx.FileDatabase(filename)
+        if filename.startswith("sshfs://"):
+            sshconf, remote_filename = pykeepassx.parse_ssh_filename(filename[8:])
+            pw = getpass.getpass("Remote password: ")
+            sshconf.password = pw
+            db = pykeepassx.SSHDatabase(sshconf, remote_filename)
+        else:
+            db = pykeepassx.FileDatabase(filename)
 
         if db.is_locked():
             open_anyway = self._input_yes_no("Database is already open. Open anyway?", False)
