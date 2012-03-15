@@ -18,6 +18,7 @@ class KDBDatabaseCli(cmd.Cmd):
         self.cd_stack = list()
         self.cur_group = None
         self.idle_check_thread = None
+        self.last_filename = None
 
         cmd.Cmd.__init__(self)
 
@@ -123,8 +124,19 @@ class KDBDatabaseCli(cmd.Cmd):
         self.cur_group = self.db.get_root_group()
         self.idle_check_thread = IdleCheckThread(self._timeout_close)
         self.idle_check_thread.start()
+        self.last_filename = filename
 
         print("Opened.")
+
+    def help_reopen():
+        print("Reopen last database.")
+
+    def do_reopen(self, _):
+        if not self.last_filename:
+            print("Database have not been opened.")
+            return
+
+        self.do_open(self.last_filename)
 
     def _timeout_close(self):
         self.do_clear()
