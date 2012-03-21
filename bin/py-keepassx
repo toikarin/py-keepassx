@@ -229,6 +229,25 @@ class KDBDatabaseCli(cmd.Cmd):
 
         print("passwd: {pw}".format(pw=entry.password))
 
+    def help_cpasswd(self):
+        print("Copy the password of the given entry to the clipboard.")
+
+    def complete_cpasswd(self, text, line, begidx, endidx):
+        return self._complete_entry(text)
+
+    def do_cpasswd(self, entry_name):
+        if not self.is_open():
+            print("cpasswd: No database currently opened")
+            return
+
+        entry = self._get_entry(entry_name)
+
+        if not entry:
+            print("cpasswd: No such entry")
+            return
+
+        pykeepassx.copy_to_clipboard(entry.password)
+
     def help_ls(self):
         print("Show entries in current working group.")
 

@@ -10,4 +10,5 @@ from ssh import (
 
 from utils import (
     generate_password,
+    copy_to_clipboard,
 )

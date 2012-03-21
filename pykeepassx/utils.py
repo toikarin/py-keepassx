@@ -71,3 +71,18 @@ def generate_password(length, lowercase=True, uppercase=True, numeric=True, spec
         password += chr(chars[crypto.randomize_int(4, len(chars))])
 
     return password
+
+
+def copy_to_clipboard(s):
+    # FIXME: better error handling (don't fail silently)
+    # FIXME: don't depend on xsel
+    import subprocess
+
+    try:
+        xsel_proc = subprocess.Popen(['xsel', '-pi'], stdin=subprocess.PIPE)
+        xsel_proc.communicate(s)
+
+        xsel_proc = subprocess.Popen(['xsel', '-bi'], stdin=subprocess.PIPE)
+        xsel_proc.communicate(s)
+    except OSError:
+        pass
